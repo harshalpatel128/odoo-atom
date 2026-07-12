@@ -12,6 +12,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const palette = ['#15803d', '#2563eb', '#16a34a', '#f59e0b', '#dc2626', '#0891b2', '#7c3aed', '#64748b', '#0f766e', '#ea580c'];
 
+    document.querySelectorAll('table.table').forEach((table) => {
+        if (!table.parentElement?.classList.contains('table-responsive')) {
+            const wrap = document.createElement('div');
+            wrap.className = 'table-responsive';
+            table.parentNode.insertBefore(wrap, table);
+            wrap.appendChild(table);
+        }
+    });
+
+    document.querySelectorAll('.btn').forEach((button) => {
+        button.addEventListener('click', (event) => {
+            const ripple = document.createElement('span');
+            const rect = button.getBoundingClientRect();
+            const size = Math.max(rect.width, rect.height);
+            ripple.className = 'ripple';
+            ripple.style.width = ripple.style.height = `${size}px`;
+            ripple.style.left = `${event.clientX - rect.left - size / 2}px`;
+            ripple.style.top = `${event.clientY - rect.top - size / 2}px`;
+            button.appendChild(ripple);
+            setTimeout(() => ripple.remove(), 560);
+        });
+    });
+
     document.querySelectorAll('.kpi strong').forEach((counter) => {
         const target = Number(counter.textContent.replace(/[^\d.-]/g, ''));
         if (!Number.isFinite(target)) return;

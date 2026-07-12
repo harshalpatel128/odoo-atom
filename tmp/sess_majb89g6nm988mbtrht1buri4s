@@ -1,0 +1,1 @@
+csrf_token|s:64:"c5273baec70bac013e45f88b1cf0b72b11ab731ff8dbae675641a7c4a192af49";user|a:7:{s:2:"id";i:1;s:4:"name";s:12:"System Admin";s:5:"email";s:16:"admin@arms.local";s:5:"phone";s:13:"+910000000001";s:15:"department_name";s:9:"Corporate";s:9:"role_slug";s:5:"admin";s:9:"role_name";s:5:"Admin";}

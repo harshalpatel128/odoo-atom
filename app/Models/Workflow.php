@@ -111,6 +111,17 @@ final class Workflow
         if (in_array($asset['lifecycle_status'], ['Lost', 'Retired', 'Disposed'], true)) {
             throw new RuntimeException('Lost, retired, and disposed assets cannot be transferred.');
         }
+        if ((int) $asset['assigned_user_id'] !== $userId) {
+            throw new RuntimeException('Only the current asset holder can request its transfer.');
+        }
+        if ((int) $data['to_user_id'] === $userId) {
+            throw new RuntimeException('An asset cannot be transferred to its current holder.');
+        }
+        $duplicate = Database::pdo()->prepare('SELECT COUNT(*) FROM asset_transfers WHERE asset_id = ? AND status = "Requested"');
+        $duplicate->execute([(int) $data['asset_id']]);
+        if ((int) $duplicate->fetchColumn() > 0) {
+            throw new RuntimeException('A transfer request is already pending for this asset.');
+        }
         $stmt = Database::pdo()->prepare('INSERT INTO asset_transfers (asset_id, from_user_id, to_user_id, requested_by, notes) VALUES (?, ?, ?, ?, ?)');
         $stmt->execute([(int) $data['asset_id'], $asset['assigned_user_id'] ?: $userId, (int) $data['to_user_id'], $userId, $data['notes'] ?? null]);
         Notification::create((int) $data['to_user_id'], 'transfer_requested', 'Transfer requested', $asset['asset_tag'] . ' has been requested for transfer.');
@@ -203,6 +214,7 @@ final class Workflow
 
     public static function bookings(?int $userId = null, int $limit = 200): array
     {
+        self::refreshBookingStates();
         $sql = 'SELECT rb.*, r.name AS resource_name, r.resource_type, r.location, users.name AS user_name
                 FROM resource_bookings rb
                 JOIN resources r ON r.id = rb.resource_id
@@ -227,6 +239,9 @@ final class Workflow
         $asset = self::asset((int) $data['asset_id']);
         if (!$asset || in_array($asset['lifecycle_status'], ['Lost', 'Retired', 'Disposed'], true)) {
             throw new RuntimeException('This asset cannot enter maintenance.');
+        }
+        if ((int) $asset['assigned_user_id'] !== $userId) {
+            throw new RuntimeException('You can request maintenance only for an asset allocated to you.');
         }
         $pdo = Database::pdo();
         $pdo->beginTransaction();
@@ -334,9 +349,15 @@ final class Workflow
         $pdo = Database::pdo();
         $pdo->beginTransaction();
         try {
+            $item = self::auditAsset($auditAssetId);
+            if (!$item || !self::auditItemIsOpen($auditAssetId)) {
+                throw new RuntimeException('This audit item is no longer available for verification.');
+            }
+            if (!empty($item['auditor_user_id']) && (int) $item['auditor_user_id'] !== $userId && !self::isPrivilegedAuditor($userId)) {
+                throw new RuntimeException('This audit item is assigned to another auditor.');
+            }
             $pdo->prepare('UPDATE audit_assets SET result = ?, notes = ? WHERE id = ?')
                 ->execute([$result, $data['notes'] ?? null, $auditAssetId]);
-            $item = self::auditAsset($auditAssetId);
             if ($result !== 'Verified') {
                 $pdo->prepare('INSERT INTO audit_discrepancies (audit_asset_id, discrepancy_type, notes) VALUES (?, ?, ?)')
                     ->execute([$auditAssetId, $result, $data['notes'] ?? null]);
@@ -388,6 +409,61 @@ final class Workflow
         $stmt->bindValue(1, $limit, \PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetchAll();
+    }
+
+    public static function auditAssetsForAuditor(int $userId, int $limit = 200): array
+    {
+        $stmt = Database::pdo()->prepare(
+            'SELECT aa.*, ac.name AS cycle_name, ac.status AS cycle_status, a.asset_tag, a.name AS asset_name
+             FROM audit_assets aa
+             JOIN audit_cycles ac ON ac.id = aa.audit_cycle_id
+             JOIN assets a ON a.id = aa.asset_id
+             WHERE aa.auditor_user_id = ?
+             ORDER BY ac.end_date, a.asset_tag LIMIT ?'
+        );
+        $stmt->bindValue(1, $userId, \PDO::PARAM_INT);
+        $stmt->bindValue(2, $limit, \PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
+    public static function createBookingReminders(int $userId): void
+    {
+        self::refreshBookingStates();
+        $stmt = Database::pdo()->prepare(
+            'SELECT rb.id, rb.starts_at, r.name AS resource_name
+             FROM resource_bookings rb JOIN resources r ON r.id = rb.resource_id
+             WHERE rb.user_id = ? AND rb.status IN ("Approved", "Upcoming")
+               AND rb.starts_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 24 HOUR)'
+        );
+        $stmt->execute([$userId]);
+        $exists = Database::pdo()->prepare('SELECT COUNT(*) FROM notifications WHERE user_id = ? AND type = "booking_reminder" AND body = ?');
+        foreach ($stmt->fetchAll() as $booking) {
+            $body = $booking['resource_name'] . ' starts at ' . $booking['starts_at'] . '.';
+            $exists->execute([$userId, $body]);
+            if ((int) $exists->fetchColumn() === 0) {
+                Notification::create($userId, 'booking_reminder', 'Upcoming booking reminder', $body);
+            }
+        }
+    }
+
+    public static function createOverdueAllocationNotifications(int $userId): void
+    {
+        $stmt = Database::pdo()->prepare(
+            'SELECT aa.id, a.asset_tag, aa.expected_return_date
+             FROM asset_allocations aa JOIN assets a ON a.id = aa.asset_id
+             WHERE aa.employee_id = ? AND aa.status = "Allocated" AND aa.returned_at IS NULL
+               AND aa.expected_return_date IS NOT NULL AND aa.expected_return_date < CURDATE()'
+        );
+        $stmt->execute([$userId]);
+        $exists = Database::pdo()->prepare('SELECT COUNT(*) FROM notifications WHERE user_id = ? AND type = "asset_overdue" AND body = ?');
+        foreach ($stmt->fetchAll() as $allocation) {
+            $body = $allocation['asset_tag'] . ' was due on ' . $allocation['expected_return_date'] . '.';
+            $exists->execute([$userId, $body]);
+            if ((int) $exists->fetchColumn() === 0) {
+                Notification::create($userId, 'asset_overdue', 'Asset return overdue', $body);
+            }
+        }
     }
 
     public static function resources(): array
@@ -495,5 +571,27 @@ final class Workflow
         $stmt = Database::pdo()->prepare('SELECT * FROM audit_assets WHERE id = ?');
         $stmt->execute([$auditAssetId]);
         return $stmt->fetch() ?: null;
+    }
+
+    private static function refreshBookingStates(): void
+    {
+        $pdo = Database::pdo();
+        $pdo->exec("UPDATE resource_bookings SET status = 'Upcoming' WHERE status = 'Approved' AND starts_at > NOW()");
+        $pdo->exec("UPDATE resource_bookings SET status = 'Ongoing' WHERE status IN ('Approved', 'Upcoming') AND starts_at <= NOW() AND ends_at > NOW()");
+        $pdo->exec("UPDATE resource_bookings SET status = 'Completed' WHERE status IN ('Approved', 'Upcoming', 'Ongoing') AND ends_at <= NOW()");
+    }
+
+    private static function auditItemIsOpen(int $auditAssetId): bool
+    {
+        $stmt = Database::pdo()->prepare('SELECT COUNT(*) FROM audit_assets aa JOIN audit_cycles ac ON ac.id = aa.audit_cycle_id WHERE aa.id = ? AND ac.status = "Open"');
+        $stmt->execute([$auditAssetId]);
+        return (int) $stmt->fetchColumn() === 1;
+    }
+
+    private static function isPrivilegedAuditor(int $userId): bool
+    {
+        $stmt = Database::pdo()->prepare('SELECT COUNT(*) FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ? AND r.slug IN ("admin", "asset_manager")');
+        $stmt->execute([$userId]);
+        return (int) $stmt->fetchColumn() === 1;
     }
 }

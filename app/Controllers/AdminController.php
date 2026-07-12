@@ -19,7 +19,9 @@ final class AdminController extends Controller
 {
     public function dashboard(): void
     {
-        AuthMiddleware::requireAdmin();
+        $this->guard(['admin', 'asset_manager', 'department_head']);
+        Workflow::createBookingReminders((int) $_SESSION['user']['id']);
+        Workflow::createOverdueAllocationNotifications((int) $_SESSION['user']['id']);
         $this->view('admin/dashboard', [
             'title' => 'Admin Dashboard',
             'panel' => 'admin',
@@ -104,7 +106,7 @@ final class AdminController extends Controller
 
     public function assets(): void
     {
-        AuthMiddleware::requireAdmin();
+        $this->guard(['admin', 'asset_manager', 'department_head']);
         $this->view('admin/assets', [
             'title' => 'Asset Directory',
             'panel' => 'admin',
@@ -118,7 +120,7 @@ final class AdminController extends Controller
 
     public function storeAsset(): void
     {
-        AuthMiddleware::requireAdmin();
+        $this->guard(['admin', 'asset_manager']);
         $this->verifyCsrf();
         $validator = (new Validator())->required($_POST, ['name' => 'Asset name', 'category_id' => 'Category']);
         if ($validator->fails()) {
@@ -141,19 +143,19 @@ final class AdminController extends Controller
         $this->redirect('/admin/assets');
     }
 
-    public function allocations(): void { AuthMiddleware::requireAdmin(); $this->simple('admin/allocations', 'Allocation & Transfers', ['allocations' => Workflow::allocations(), 'transfers' => Workflow::transfers()]); }
-    public function bookings(): void { AuthMiddleware::requireAdmin(); $this->simple('admin/bookings', 'Resource Bookings', ['bookings' => Workflow::bookings()]); }
-    public function maintenance(): void { AuthMiddleware::requireAdmin(); $this->simple('admin/maintenance', 'Maintenance Management', ['requests' => Workflow::maintenanceRequests()]); }
-    public function audits(): void { AuthMiddleware::requireAdmin(); $this->simple('admin/audits', 'Asset Audit', ['audits' => Workflow::audits(), 'auditAssets' => Workflow::auditAssets()]); }
-    public function reports(): void { AuthMiddleware::requireAdmin(); $this->simple('admin/reports', 'Reports & Analytics', ['reports' => \App\Models\Report::datasets($_GET)]); }
-    public function notifications(): void { AuthMiddleware::requireAdmin(); $this->simple('shared/notifications', 'Notifications', ['notifications' => Notification::all(), 'unreadCount' => Notification::unreadCount((int) $_SESSION['user']['id'])]); }
-    public function profile(): void { AuthMiddleware::requireAdmin(); $this->simple('shared/profile', 'Profile'); }
-    public function settings(): void { AuthMiddleware::requireAdmin(); $this->simple('shared/settings', 'Settings'); }
+    public function allocations(): void { $this->guard(['admin', 'asset_manager', 'department_head']); $this->simple('admin/allocations', 'Allocation & Transfers', ['allocations' => Workflow::allocations(), 'transfers' => Workflow::transfers()]); }
+    public function bookings(): void { $this->guard(['admin', 'asset_manager', 'department_head']); $this->simple('admin/bookings', 'Resource Bookings', ['bookings' => Workflow::bookings()]); }
+    public function maintenance(): void { $this->guard(['admin', 'asset_manager', 'department_head']); $this->simple('admin/maintenance', 'Maintenance Management', ['requests' => Workflow::maintenanceRequests()]); }
+    public function audits(): void { $this->guard(['admin', 'asset_manager']); $this->simple('admin/audits', 'Asset Audit', ['audits' => Workflow::audits(), 'auditAssets' => Workflow::auditAssets()]); }
+    public function reports(): void { $this->guard(['admin', 'asset_manager', 'department_head']); $this->simple('admin/reports', 'Reports & Analytics', ['reports' => \App\Models\Report::datasets($_GET)]); }
+    public function notifications(): void { $this->guard(['admin', 'asset_manager', 'department_head']); $this->simple('shared/notifications', 'Notifications', ['notifications' => Notification::forUser((int) $_SESSION['user']['id']), 'unreadCount' => Notification::unreadCount((int) $_SESSION['user']['id'])]); }
+    public function profile(): void { $this->guard(['admin', 'asset_manager', 'department_head']); $this->simple('shared/profile', 'Profile'); }
+    public function settings(): void { $this->guard(['admin', 'asset_manager', 'department_head']); $this->simple('shared/settings', 'Settings'); }
     public function logs(): void { AuthMiddleware::requireAdmin(); $this->view('admin/logs', ['title' => 'Activity Logs', 'panel' => 'admin', 'activities' => ActivityLog::recent(50), 'csrf' => $this->csrf()]); }
 
     public function updateProfile(): void
     {
-        AuthMiddleware::requireAdmin();
+        $this->guard(['admin', 'asset_manager', 'department_head']);
         $this->verifyCsrf();
         $validator = (new Validator())->required($_POST, ['name' => 'Name']);
         if ($validator->fails()) {
@@ -168,7 +170,7 @@ final class AdminController extends Controller
 
     public function changePassword(): void
     {
-        AuthMiddleware::requireAdmin();
+        $this->guard(['admin', 'asset_manager', 'department_head']);
         $this->verifyCsrf();
         if (strlen($_POST['new_password'] ?? '') < 8 || ($_POST['new_password'] ?? '') !== ($_POST['confirm_password'] ?? '')) {
             $_SESSION['error'] = 'New passwords must match and be at least 8 characters.';
@@ -182,7 +184,7 @@ final class AdminController extends Controller
 
     public function storeAllocation(): void
     {
-        AuthMiddleware::requireAdmin();
+        $this->guard(['admin', 'asset_manager']);
         $this->verifyCsrf();
         try {
             Workflow::allocate($_POST, (int) $_SESSION['user']['id']);
@@ -196,7 +198,7 @@ final class AdminController extends Controller
 
     public function returnAllocation(): void
     {
-        AuthMiddleware::requireAdmin();
+        $this->guard(['admin', 'asset_manager']);
         $this->verifyCsrf();
         try {
             Workflow::returnAllocation($_POST, (int) $_SESSION['user']['id']);
@@ -210,7 +212,7 @@ final class AdminController extends Controller
 
     public function cancelAllocation(): void
     {
-        AuthMiddleware::requireAdmin();
+        $this->guard(['admin', 'asset_manager']);
         $this->verifyCsrf();
         try {
             Workflow::cancelAllocation((int) $_POST['allocation_id'], (int) $_SESSION['user']['id']);
@@ -224,7 +226,7 @@ final class AdminController extends Controller
 
     public function decideTransfer(): void
     {
-        AuthMiddleware::requireAdmin();
+        $this->guard(['admin', 'asset_manager', 'department_head']);
         $this->verifyCsrf();
         try {
             Workflow::decideTransfer((int) $_POST['transfer_id'], $_POST['status'], (int) $_SESSION['user']['id']);
@@ -238,7 +240,7 @@ final class AdminController extends Controller
 
     public function storeBooking(): void
     {
-        AuthMiddleware::requireAdmin();
+        $this->guard(['admin', 'asset_manager', 'department_head']);
         $this->verifyCsrf();
         try {
             if (!Workflow::bookResource($_POST, (int) ($_POST['user_id'] ?: $_SESSION['user']['id']))) {
@@ -255,7 +257,7 @@ final class AdminController extends Controller
 
     public function decideBooking(): void
     {
-        AuthMiddleware::requireAdmin();
+        $this->guard(['admin', 'asset_manager', 'department_head']);
         $this->verifyCsrf();
         try {
             Workflow::decideBooking((int) $_POST['booking_id'], $_POST['status'], (int) $_SESSION['user']['id']);
@@ -268,7 +270,7 @@ final class AdminController extends Controller
 
     public function updateMaintenance(): void
     {
-        AuthMiddleware::requireAdmin();
+        $this->guard(['admin', 'asset_manager']);
         $this->verifyCsrf();
         try {
             Workflow::updateMaintenance($_POST, (int) $_SESSION['user']['id']);
@@ -282,7 +284,7 @@ final class AdminController extends Controller
 
     public function storeAudit(): void
     {
-        AuthMiddleware::requireAdmin();
+        $this->guard(['admin', 'asset_manager']);
         $this->verifyCsrf();
         try {
             Workflow::createAudit($_POST, (int) $_SESSION['user']['id']);
@@ -295,7 +297,7 @@ final class AdminController extends Controller
 
     public function updateAuditAsset(): void
     {
-        AuthMiddleware::requireAdmin();
+        $this->guard(['admin', 'asset_manager']);
         $this->verifyCsrf();
         try {
             Workflow::updateAuditAsset($_POST, (int) $_SESSION['user']['id']);
@@ -309,7 +311,7 @@ final class AdminController extends Controller
 
     public function closeAudit(): void
     {
-        AuthMiddleware::requireAdmin();
+        $this->guard(['admin', 'asset_manager']);
         $this->verifyCsrf();
         Workflow::closeAudit((int) $_POST['audit_cycle_id'], (int) $_SESSION['user']['id']);
         $_SESSION['success'] = 'Audit cycle closed.';
@@ -318,7 +320,7 @@ final class AdminController extends Controller
 
     public function markNotificationsRead(): void
     {
-        AuthMiddleware::requireAdmin();
+        $this->guard(['admin', 'asset_manager', 'department_head']);
         $this->verifyCsrf();
         Notification::markAllRead((int) $_SESSION['user']['id']);
         $this->redirect('/admin/notifications');
@@ -326,17 +328,17 @@ final class AdminController extends Controller
 
     public function markNotificationRead(): void
     {
-        AuthMiddleware::requireAdmin();
+        $this->guard(['admin', 'asset_manager', 'department_head']);
         $this->verifyCsrf();
-        Notification::markRead((int) $_POST['notification_id'], (int) $_SESSION['user']['id'], true);
+        Notification::markRead((int) $_POST['notification_id'], (int) $_SESSION['user']['id'], ($_SESSION['user']['role_slug'] ?? '') === 'admin');
         $this->redirect('/admin/notifications');
     }
 
     public function deleteNotification(): void
     {
-        AuthMiddleware::requireAdmin();
+        $this->guard(['admin', 'asset_manager', 'department_head']);
         $this->verifyCsrf();
-        Notification::delete((int) $_POST['notification_id'], (int) $_SESSION['user']['id'], true);
+        Notification::delete((int) $_POST['notification_id'], (int) $_SESSION['user']['id'], ($_SESSION['user']['role_slug'] ?? '') === 'admin');
         $this->redirect('/admin/notifications');
     }
 
@@ -351,5 +353,10 @@ final class AdminController extends Controller
             'resources' => Workflow::resources(),
             'csrf' => $this->csrf(),
         ], $extra));
+    }
+
+    private function guard(array $roles): void
+    {
+        AuthMiddleware::requireAnyRole($roles);
     }
 }

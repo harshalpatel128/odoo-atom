@@ -2,9 +2,10 @@
 <section class="panel">
     <div class="section-head">
         <h2>Resource Booking Calendar</h2>
+        <div class="btn-group" role="group" aria-label="Calendar view"><button class="btn btn-outline-secondary btn-sm js-calendar-view active" type="button" data-view="week">Week</button><button class="btn btn-outline-secondary btn-sm js-calendar-view" type="button" data-view="month">Month</button></div>
         <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#bookingModal"><i class="bi bi-plus-circle"></i> New Booking</button>
     </div>
-    <div class="calendar-board">
+    <div class="calendar-board js-booking-calendar" data-bookings='<?= htmlspecialchars(json_encode($bookings ?? []), ENT_QUOTES, 'UTF-8') ?>'>
         <?php foreach (array_slice(($bookings ?? []), 0, 6) as $booking): ?>
             <div><strong><?= htmlspecialchars(date('M d H:i', strtotime($booking['starts_at']))) ?></strong><span><?= htmlspecialchars($booking['resource_name']) ?></span><small><?= htmlspecialchars($booking['status']) ?></small></div>
         <?php endforeach; ?>

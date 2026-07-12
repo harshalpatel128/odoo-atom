@@ -6,6 +6,11 @@ $sessionPath = dirname(__DIR__) . '/tmp';
 if (is_dir($sessionPath) && is_writable($sessionPath)) {
     session_save_path($sessionPath);
 }
+session_set_cookie_params([
+    'httponly' => true,
+    'samesite' => 'Lax',
+    'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+]);
 session_start();
 
 spl_autoload_register(function (string $class): void {
@@ -48,6 +53,8 @@ $router->get('/user/maintenance', [UserController::class, 'maintenance']);
 $router->post('/user/maintenance', [UserController::class, 'requestMaintenance']);
 $router->get('/user/transfers', [UserController::class, 'transfers']);
 $router->post('/user/transfers', [UserController::class, 'requestTransfer']);
+$router->get('/user/audits', [UserController::class, 'audits']);
+$router->post('/user/audits/item', [UserController::class, 'updateAuditAsset']);
 $router->get('/user/notifications', [UserController::class, 'notifications']);
 $router->post('/user/notifications/read', [UserController::class, 'markNotificationsRead']);
 $router->post('/user/notifications/read-one', [UserController::class, 'markNotificationRead']);

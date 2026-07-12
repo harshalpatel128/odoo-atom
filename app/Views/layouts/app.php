@@ -23,9 +23,17 @@ $nav = $isAdmin
         '/user/bookings' => ['Bookings', 'bi-calendar2-check'],
         '/user/maintenance' => ['Maintenance', 'bi-tools'],
         '/user/transfers' => ['Transfers', 'bi-arrow-left-right'],
+        '/user/audits' => ['My Audit Tasks', 'bi-clipboard-check'],
         '/user/notifications' => ['Notifications', 'bi-bell'],
     ];
 $panelBase = $isAdmin ? '/admin' : '/user';
+$roleSlug = $user['role_slug'] ?? 'employee';
+if ($isAdmin && $roleSlug !== 'admin') {
+    $allowedAdminRoutes = $roleSlug === 'asset_manager'
+        ? ['/admin/dashboard', '/admin/assets', '/admin/allocations', '/admin/bookings', '/admin/maintenance', '/admin/audits', '/admin/reports', '/admin/notifications']
+        : ['/admin/dashboard', '/admin/assets', '/admin/allocations', '/admin/bookings', '/admin/maintenance', '/admin/reports', '/admin/notifications'];
+    $nav = array_filter($nav, static fn (string $path): bool => in_array($path, $allowedAdminRoutes, true), ARRAY_FILTER_USE_KEY);
+}
 $currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 ?>
 <!doctype html>

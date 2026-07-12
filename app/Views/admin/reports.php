@@ -28,6 +28,8 @@ $tables = [
     'Booking Report' => $reports['bookings'] ?? [],
     'Maintenance Report' => $reports['maintenance'] ?? [],
     'Audit Report' => $reports['audits'] ?? [],
+    'Department Report' => $reports['departments'] ?? [],
+    'Employee Report' => $reports['employees'] ?? [],
 ];
 ?>
 <?php foreach ($tables as $heading => $rows): ?>
@@ -35,6 +37,7 @@ $tables = [
         <div class="section-head">
             <h2><?= htmlspecialchars($heading) ?></h2>
             <button class="btn btn-outline-primary btn-sm js-export-csv" type="button">Export CSV</button>
+            <button class="btn btn-outline-secondary btn-sm js-export-excel" type="button">Export Excel</button>
         </div>
         <table class="table data-table exportable">
             <thead><tr><?php foreach (array_keys($rows[0] ?? ['empty' => '']) as $column): ?><th><?= htmlspecialchars(str_replace('_', ' ', ucfirst($column))) ?></th><?php endforeach; ?></tr></thead>

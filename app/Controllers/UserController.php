@@ -18,6 +18,8 @@ final class UserController extends Controller
     public function dashboard(): void
     {
         AuthMiddleware::requireLogin();
+        Workflow::createBookingReminders((int) $_SESSION['user']['id']);
+        Workflow::createOverdueAllocationNotifications((int) $_SESSION['user']['id']);
         $this->view('user/dashboard', [
             'title' => 'User Dashboard',
             'panel' => 'user',
@@ -32,7 +34,7 @@ final class UserController extends Controller
     public function assets(): void
     {
         AuthMiddleware::requireLogin();
-        $this->view('user/assets', ['title' => 'My Assets', 'panel' => 'user', 'assets' => Asset::all(100), 'csrf' => $this->csrf()]);
+        $this->view('user/assets', ['title' => 'My Assets', 'panel' => 'user', 'assets' => Asset::assignedTo((int) $_SESSION['user']['id']), 'csrf' => $this->csrf()]);
     }
 
     public function bookings(): void
@@ -44,13 +46,33 @@ final class UserController extends Controller
     public function maintenance(): void
     {
         AuthMiddleware::requireLogin();
-        $this->view('user/maintenance', ['title' => 'Maintenance Requests', 'panel' => 'user', 'assets' => Asset::all(100), 'requests' => Workflow::maintenanceRequests((int) $_SESSION['user']['id']), 'csrf' => $this->csrf()]);
+        $this->view('user/maintenance', ['title' => 'Maintenance Requests', 'panel' => 'user', 'assets' => Asset::assignedTo((int) $_SESSION['user']['id']), 'requests' => Workflow::maintenanceRequests((int) $_SESSION['user']['id']), 'csrf' => $this->csrf()]);
     }
 
     public function transfers(): void
     {
         AuthMiddleware::requireLogin();
-        $this->view('user/transfers', ['title' => 'Transfer Requests', 'panel' => 'user', 'assets' => Asset::all(100), 'users' => User::allWithRoles(), 'transfers' => Workflow::transfers((int) $_SESSION['user']['id']), 'csrf' => $this->csrf()]);
+        $this->view('user/transfers', ['title' => 'Transfer Requests', 'panel' => 'user', 'assets' => Asset::assignedTo((int) $_SESSION['user']['id']), 'users' => User::allWithRoles(), 'transfers' => Workflow::transfers((int) $_SESSION['user']['id']), 'csrf' => $this->csrf()]);
+    }
+
+    public function audits(): void
+    {
+        AuthMiddleware::requireLogin();
+        $this->view('user/audits', ['title' => 'My Audit Tasks', 'panel' => 'user', 'auditAssets' => Workflow::auditAssetsForAuditor((int) $_SESSION['user']['id']), 'csrf' => $this->csrf()]);
+    }
+
+    public function updateAuditAsset(): void
+    {
+        AuthMiddleware::requireLogin();
+        $this->verifyCsrf();
+        try {
+            Workflow::updateAuditAsset($_POST, (int) $_SESSION['user']['id']);
+            ActivityLog::write((int) $_SESSION['user']['id'], 'Verified audit asset', 'Audits');
+            $_SESSION['success'] = 'Audit item updated.';
+        } catch (\Throwable $e) {
+            $_SESSION['error'] = $e->getMessage();
+        }
+        $this->redirect('/user/audits');
     }
 
     public function notifications(): void

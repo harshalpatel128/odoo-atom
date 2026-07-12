@@ -23,6 +23,14 @@ final class Uploader
             throw new \RuntimeException('Invalid file type.');
         }
 
+        $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($_FILES[$field]['tmp_name']);
+        $allowedMimes = $type === 'image'
+            ? ['image/jpeg', 'image/png', 'image/webp']
+            : ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'image/jpeg', 'image/png'];
+        if (!in_array($mime, $allowedMimes, true)) {
+            throw new \RuntimeException('The uploaded file content is not allowed.');
+        }
+
         if ((int) $_FILES[$field]['size'] > 5 * 1024 * 1024) {
             throw new \RuntimeException('File must be 5MB or smaller.');
         }

@@ -21,6 +21,22 @@ final class Asset
         return $stmt->fetchAll();
     }
 
+    public static function assignedTo(int $userId, int $limit = 200): array
+    {
+        $stmt = Database::pdo()->prepare(
+            'SELECT a.*, c.name AS category_name, d.name AS department_name
+             FROM assets a
+             JOIN asset_categories c ON c.id = a.category_id
+             LEFT JOIN departments d ON d.id = a.department_id
+             WHERE a.assigned_user_id = ?
+             ORDER BY a.updated_at DESC, a.id DESC LIMIT ?'
+        );
+        $stmt->bindValue(1, $userId, \PDO::PARAM_INT);
+        $stmt->bindValue(2, $limit, \PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+
     public static function nextTag(): string
     {
         $last = (int) Database::pdo()->query("SELECT COALESCE(MAX(CAST(SUBSTRING(asset_tag, 4) AS UNSIGNED)), 0) FROM assets WHERE asset_tag LIKE 'AF-%'")->fetchColumn();

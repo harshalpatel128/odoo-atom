@@ -87,4 +87,55 @@ document.addEventListener('DOMContentLoaded', () => {
             URL.revokeObjectURL(link.href);
         });
     });
+
+    document.querySelectorAll('.js-export-excel').forEach((button) => {
+        button.addEventListener('click', () => {
+            const table = button.closest('.panel')?.querySelector('table');
+            if (!table) return;
+            const blob = new Blob(['\ufeff' + table.outerHTML], { type: 'application/vnd.ms-excel' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `${button.closest('.panel')?.querySelector('h2')?.textContent || 'report'}.xls`;
+            link.click();
+            URL.revokeObjectURL(link.href);
+        });
+    });
+
+    document.querySelectorAll('.js-booking-calendar').forEach((calendar) => {
+        let view = 'week';
+        const bookings = JSON.parse(calendar.dataset.bookings || '[]');
+        const render = () => {
+            const today = new Date();
+            const start = new Date(today.getFullYear(), today.getMonth(), view === 'week' ? today.getDate() : 1);
+            const days = view === 'week' ? 7 : new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+            calendar.replaceChildren(...Array.from({ length: days }, (_, index) => {
+                const day = new Date(start.getFullYear(), start.getMonth(), start.getDate() + index);
+                const key = day.toISOString().slice(0, 10);
+                const entries = bookings.filter((booking) => String(booking.starts_at || '').slice(0, 10) === key);
+                const cell = document.createElement('div');
+                const label = document.createElement('strong');
+                label.textContent = day.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                cell.append(label);
+                if (!entries.length) {
+                    const empty = document.createElement('small');
+                    empty.textContent = 'No bookings';
+                    cell.append(empty);
+                }
+                entries.forEach((booking) => {
+                    const resource = document.createElement('span');
+                    resource.textContent = booking.resource_name || 'Resource';
+                    const status = document.createElement('small');
+                    status.textContent = booking.status || '';
+                    cell.append(resource, status);
+                });
+                return cell;
+            }));
+        };
+        document.querySelectorAll('.js-calendar-view').forEach((button) => button.addEventListener('click', () => {
+            view = button.dataset.view || 'week';
+            document.querySelectorAll('.js-calendar-view').forEach((item) => item.classList.toggle('active', item === button));
+            render();
+        }));
+        render();
+    });
 });

@@ -212,6 +212,7 @@ CREATE TABLE asset_transfers (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     decided_at DATETIME NULL,
     INDEX idx_transfer_status (status),
+    INDEX idx_transfer_asset_status (asset_id, status),
     CONSTRAINT fk_transfers_asset FOREIGN KEY (asset_id) REFERENCES assets(id),
     CONSTRAINT fk_transfers_from FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE SET NULL,
     CONSTRAINT fk_transfers_to FOREIGN KEY (to_user_id) REFERENCES users(id),

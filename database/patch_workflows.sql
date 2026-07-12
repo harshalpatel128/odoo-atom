@@ -33,6 +33,9 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'maintenance_history' AND COLUMN_NAME = 'repair_cost') THEN
         ALTER TABLE maintenance_history ADD COLUMN repair_cost DECIMAL(12,2) NULL AFTER notes;
     END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'asset_transfers' AND INDEX_NAME = 'idx_transfer_asset_status') THEN
+        ALTER TABLE asset_transfers ADD INDEX idx_transfer_asset_status (asset_id, status);
+    END IF;
 END$$
 DELIMITER ;
 

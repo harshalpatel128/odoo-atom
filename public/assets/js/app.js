@@ -1,13 +1,49 @@
 document.addEventListener('DOMContentLoaded', () => {
     const body = document.body;
+    const root = document.documentElement;
     const storedTheme = localStorage.getItem('assetflow-theme');
     if (storedTheme === 'dark') {
         body.classList.add('theme-dark');
     }
+    root.style.colorScheme = body.classList.contains('theme-dark') ? 'dark' : 'light';
+    if (localStorage.getItem('assetflow-sidebar') === 'collapsed') {
+        body.classList.add('sidebar-collapsed');
+    }
+
+    const palette = ['#15803d', '#2563eb', '#16a34a', '#f59e0b', '#dc2626', '#0891b2', '#7c3aed', '#64748b', '#0f766e', '#ea580c'];
+
+    document.querySelectorAll('.kpi strong').forEach((counter) => {
+        const target = Number(counter.textContent.replace(/[^\d.-]/g, ''));
+        if (!Number.isFinite(target)) return;
+        const duration = 850;
+        const start = performance.now();
+        const tick = (now) => {
+            const progress = Math.min((now - start) / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            counter.textContent = String(Math.round(target * eased));
+            if (progress < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+    });
+
+    document.querySelectorAll('.status-pill').forEach((pill) => {
+        const text = pill.textContent.trim().toLowerCase();
+        pill.classList.toggle('warning', ['reserved', 'maintenance', 'under maintenance', 'pending'].includes(text));
+        pill.classList.toggle('danger', ['lost', 'retired', 'disposed', 'rejected', 'damaged', 'missing'].includes(text));
+    });
 
     document.querySelectorAll('.data-table').forEach((table) => {
         if (window.DataTable) {
-            new DataTable(table);
+            new DataTable(table, {
+                responsive: true,
+                pageLength: 10,
+                language: {
+                    search: '',
+                    searchPlaceholder: 'Search records',
+                    lengthMenu: '_MENU_ rows',
+                    info: '_START_ to _END_ of _TOTAL_'
+                }
+            });
         }
     });
 
@@ -15,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!window.Chart) return;
         const payload = JSON.parse(chart.dataset.chart || '{"type":"bar","rows":[]}');
         const rows = payload.rows || [];
+        const dark = body.classList.contains('theme-dark');
         new Chart(chart, {
             type: payload.type || 'bar',
             data: {
@@ -22,20 +59,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 datasets: [{
                     label: chart.closest('.panel')?.querySelector('h2')?.textContent || 'AssetFlow',
                     data: rows.map((row) => Number(row.value || 0)),
-                    borderColor: '#176b87',
-                    backgroundColor: ['#176b87', '#bf6f13', '#6f7d2c', '#8a5a44', '#4b6584', '#2d6a4f', '#6d597a', '#457b9d', '#2a9d8f', '#e76f51']
+                    borderColor: '#15803d',
+                    borderWidth: payload.type === 'line' ? 3 : 1,
+                    tension: .38,
+                    fill: payload.type === 'line',
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    backgroundColor: payload.type === 'line' ? 'rgba(21, 128, 61, .14)' : palette
                 }]
             },
             options: {
                 responsive: true,
-                plugins: { legend: { display: payload.type === 'pie' || payload.type === 'doughnut' } },
-                scales: payload.type === 'pie' || payload.type === 'doughnut' ? {} : { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                maintainAspectRatio: true,
+                animation: { duration: 900, easing: 'easeOutQuart' },
+                plugins: {
+                    legend: {
+                        display: payload.type === 'pie' || payload.type === 'doughnut',
+                        position: 'bottom',
+                        labels: { usePointStyle: true, boxWidth: 8, color: dark ? '#edf3f7' : '#172033' }
+                    }
+                },
+                scales: payload.type === 'pie' || payload.type === 'doughnut' ? {} : {
+                    x: { grid: { display: false }, ticks: { color: dark ? '#a9b5c2' : '#667085' } },
+                    y: { beginAtZero: true, ticks: { precision: 0, color: dark ? '#a9b5c2' : '#667085' }, grid: { color: dark ? '#2c3a4a' : '#e5e7eb' } }
+                }
             }
         });
     });
 
     document.querySelectorAll('.menu-toggle').forEach((button) => {
         button.addEventListener('click', () => body.classList.toggle('sidebar-open'));
+    });
+    document.querySelectorAll('.sidebar-collapse').forEach((button) => {
+        button.addEventListener('click', () => {
+            body.classList.toggle('sidebar-collapsed');
+            localStorage.setItem('assetflow-sidebar', body.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
+        });
+    });
+    document.querySelectorAll('.sidebar nav a').forEach((link) => {
+        link.addEventListener('click', () => body.classList.remove('sidebar-open'));
     });
 
     document.querySelectorAll('.js-dark-toggle, .js-dark-toggle-btn').forEach((control) => {
@@ -45,6 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
         control.addEventListener('click', () => {
             body.classList.toggle('theme-dark');
             localStorage.setItem('assetflow-theme', body.classList.contains('theme-dark') ? 'dark' : 'light');
+            root.style.colorScheme = body.classList.contains('theme-dark') ? 'dark' : 'light';
             document.querySelectorAll('.js-dark-toggle').forEach((input) => {
                 input.checked = body.classList.contains('theme-dark');
             });
@@ -54,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.js-page-search').forEach((input) => {
         input.addEventListener('input', () => {
             const query = input.value.trim().toLowerCase();
-            document.querySelectorAll('tbody tr, .notification, .workflow-list article, .calendar-board > div').forEach((row) => {
+            document.querySelectorAll('tbody tr, .notification, .workflow-list article, .calendar-board > div, .activity-list li').forEach((row) => {
                 row.classList.toggle('d-none', query !== '' && !row.textContent.toLowerCase().includes(query));
             });
         });

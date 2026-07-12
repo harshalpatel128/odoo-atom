@@ -36,6 +36,7 @@ final class User
     {
         $roleId = Database::pdo()->query("SELECT id FROM roles WHERE slug = 'employee' LIMIT 1")->fetchColumn();
         $pdo = Database::pdo();
+        self::ensureEmployeesTable($pdo);
         $stmt = $pdo->prepare(
             'INSERT INTO users (name, email, password_hash, role_id, status) VALUES (?, ?, ?, ?, "active")'
         );
@@ -71,6 +72,7 @@ final class User
             $role = 'employee';
         }
         $pdo = Database::pdo();
+        self::ensureEmployeesTable($pdo);
         $pdo->beginTransaction();
         $stmt = $pdo->prepare('INSERT INTO users (name, email, password_hash, role_id, department_id, phone, status) VALUES (?, ?, ?, (SELECT id FROM roles WHERE slug = ?), NULLIF(?, 0), ?, ?)');
         $stmt->execute([
@@ -87,6 +89,21 @@ final class User
             ->execute([$id, $data['employee_code'] ?? ('EMP' . str_pad((string) $id, 4, '0', STR_PAD_LEFT)), $data['designation'] ?? 'Employee', $data['joining_date'] ?? '']);
         $pdo->commit();
         return $id;
+    }
+
+    private static function ensureEmployeesTable(\PDO $pdo): void
+    {
+        $pdo->exec(
+            'CREATE TABLE IF NOT EXISTS employees (
+                id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                user_id BIGINT UNSIGNED NOT NULL UNIQUE,
+                employee_code VARCHAR(40) NOT NULL UNIQUE,
+                designation VARCHAR(120) NULL,
+                joining_date DATE NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT fk_employees_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB'
+        );
     }
 
     public static function updateStatus(int $id, string $status): void

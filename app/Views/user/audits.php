@@ -10,6 +10,7 @@
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>"><input type="hidden" name="audit_asset_id" value="<?= (int) $item['id'] ?>">
                 <select class="form-select form-select-sm" name="result"><option>Verified</option><option>Missing</option><option>Damaged</option></select><input class="form-control form-control-sm" name="notes" value="<?= htmlspecialchars($item['notes'] ?? '') ?>" placeholder="Notes"><button class="btn btn-primary btn-sm">Save</button>
             </form><?php else: ?><?= htmlspecialchars($item['result'] ?? 'Closed') ?><?php endif; ?></td>
-        </tr><?php endforeach; ?><?php if (empty($auditAssets)): ?><tr><td colspan="4">No audit tasks are assigned to you.</td></tr><?php endif; ?></tbody>
+        </tr><?php endforeach; ?></tbody>
     </table>
+    <?php if (empty($auditAssets)): ?><p class="muted mb-0">No audit tasks are assigned to you.</p><?php endif; ?>
 </section>
